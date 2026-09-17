@@ -1,0 +1,61 @@
+---
+title: "Dernier nettoyage du CSV"
+output: html_notebook
+---
+
+
+```{r}
+library(dplyr)
+library(readr)
+library(stringr)
+```
+
+```{r}
+df <- read_csv("Data_Manipulation _Fin_R.csv")
+```
+
+```{r}
+# We erase the paragraphs that are repeated in the same Report. 
+
+remove_repeated_paragraphs <- function(text) {
+  paragraphs <- unlist(str_split(text, "\\n\\s*\\n|\\n"))
+  paragraphs <- str_trim(paragraphs)
+  paragraphs <- paragraphs[paragraphs != ""]
+  unique_paragraphs <- paragraphs[!duplicated(paragraphs)]
+  return(paste(unique_paragraphs, collapse = "\n\n"))
+}
+```
+
+```{r}
+# Check the progression with the loading grade.
+
+n <- nrow(df)
+pb <- txtProgressBar(min = 0, max = n, style = 3)
+```
+
+```{r}
+# Apply the function
+
+df$Report_cleaned <- vector("character", n)
+for (i in seq_len(n)) {
+  df$Report_cleaned[i] <- remove_repeated_paragraphs(df$Report[i])
+  setTxtProgressBar(pb, i)
+}
+close(pb)
+```
+
+```{r}
+# Now we manipulate the Dataset to make it easier to read, by change the name of the column and changing their order.
+
+df <- df %>%
+  select(-Report) %>%
+  rename(Report = Report_cleaned)
+
+desired_order <- c("Source", "Society", "Report", "Pages", "Comments", "Word_Count")
+df <- df[, desired_order]
+```
+
+```{r}
+write_csv(df, "Data_Manipulation_Fin_R_Cleaned.csv")
+```
+

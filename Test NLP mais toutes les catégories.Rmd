@@ -1,0 +1,78 @@
+---
+title: "Test pour NLP mais toutes les catégories"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(readr)
+library(stringr)
+library(tidyr)
+library(tibble)
+library(tidyverse)
+library(tidytext)
+```
+
+```{r}
+resultat_clean <- read_csv("Data_Manipulation _Fin_R.csv")
+```
+
+```{r}
+mfd <- read_csv("eMFD_wordlist.csv")
+```
+
+```{r}
+ # Here we perform all the text preprocessing tasks, I convert everything to lowercase, tokenize the text, then filter to focus only on the first 50 rows. The inner join allows me to match each word with its entry in the dictionary and thus retrieve its score for the 5 moral categories in that dictionary.
+
+mfd_clean <- mfd %>%
+  mutate(word = tolower(word))
+
+df_sample <- resultat_clean %>%
+  slice(1:50) %>%
+  mutate(id = row_number())
+
+tokens <- df_sample %>%
+  unnest_tokens(word, Report) %>%
+  mutate(word = tolower(word))
+
+joined <- tokens %>%
+  inner_join(mfd_clean, by = "word")
+```
+
+```{r}
+# Here, I calculate the moral score of each report. At the end, I chose to display all the categories that have a score greater than 0, in other words, the ones that appear at least once.
+
+moral_scores <- joined %>%
+  group_by(id) %>%
+  summarise(
+    care = sum(care_p, na.rm = TRUE),
+    fairness = sum(fairness_p, na.rm = TRUE),
+    loyalty = sum(loyalty_p, na.rm = TRUE),
+    authority = sum(authority_p, na.rm = TRUE),
+    sanctity = sum(sanctity_p, na.rm = TRUE)
+  )
+
+moral_categories <- moral_scores %>%
+  rowwise() %>%
+  mutate(
+    categories = paste(
+      c("care", "fairness", "loyalty", "authority", "sanctity")[
+        c(care, fairness, loyalty, authority, sanctity) > 0
+      ],
+      collapse = ", "
+    )
+  ) %>%
+  ungroup() %>%
+  select(id, categories)
+
+df_result <- df_sample %>%
+  left_join(moral_categories, by = "id")
+```
+
+```{r}
+write_csv(df_result, "Test_NLP.csv")
+print(df_result)
+```
+
+
+

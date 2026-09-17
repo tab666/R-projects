@@ -1,0 +1,33 @@
+---
+title: "Random validation"
+output: html_notebook
+---
+
+```{r}
+library(readr)
+library(dplyr)
+```
+
+```{r}
+# This function extracts randomly a sample of 20 Reports.
+
+extract_random_rows <- function(file_path, n = 20, seed = 123) {
+  set.seed(seed)  
+  df <- read_csv(file_path)
+  
+  # Randomize
+  
+  sample_df <- df %>% sample_n(n)
+  
+  return(sample_df)
+}
+
+# Apply it
+
+random_rows <- extract_random_rows("Data_Manipulation _Fin_R.csv")
+```
+
+```{r}
+print(random_rows)
+write_csv(random_rows, "Random_Validation.csv")
+```

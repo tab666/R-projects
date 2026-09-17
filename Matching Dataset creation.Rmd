@@ -1,0 +1,196 @@
+---
+title: "Matching Dataset Creation"
+output: html_notebook
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(stringr)
+library(tidyr)
+```
+
+```{r}
+# We clean the different names to manipulate it more easily.
+
+clean_names <- function(name) {
+  name %>%
+    tolower() %>%
+    str_replace_all("[[:punct:]]", "") %>%
+    str_squish()
+}
+```
+
+```{r}
+ea <- read_csv("societies_EA.csv") %>%
+  mutate(society_clean = clean_names(pref_name_for_society))
+
+sccs <- read_csv("societies_SCCS.csv") %>%
+  mutate(society_clean = clean_names(pref_name_for_society))
+```
+
+```{r}
+ehraf_ea <- read_csv("EA_IN_EHRAF.csv") %>%
+  rename(
+    society_name_HRAF = `OWC CULTURE NAME`,
+    society_name_EA = `EA CULTURE NAME`
+  ) %>%
+  mutate(society_clean = clean_names(society_name_EA))
+
+ehraf_sccs <- read_csv("SCCS_IN_EHRAF.csv") %>%
+  rename(
+    society_name_HRAF = `OWC Culture Name`,
+    society_name_SCCS = `SCCS Sample Culture Name`
+  ) %>%
+  mutate(society_clean = clean_names(society_name_SCCS))
+```
+
+```{r}
+# We Begin by matching EA and EHRAF Datasets.
+
+add_hraf_fields <- function(df) {
+  df %>%
+    mutate(
+      subsistence_HRAF = NA_character_,
+      region_HRAF = NA_character_
+    )
+}
+
+ea_matched <- ehraf_ea %>%
+  add_hraf_fields() %>%
+  inner_join(ea, by = "society_clean") %>%
+  transmute(
+    society_name_HRAF,
+    society_name_EA,
+    subsistence_HRAF,
+    region_HRAF,
+    glottocode,
+    `language family` = glottocode_comment,
+    latitude = Lat,
+    longitude = Long
+  )
+```
+
+```{r}
+# Now we match SCCS and EHRAF Datasets.
+
+sccs_matched <- ehraf_sccs %>%
+  add_hraf_fields() %>%
+  inner_join(sccs, by = "society_clean") %>%
+  transmute(
+    society_name_HRAF,
+    society_name_SCCS,
+    subsistence_HRAF,
+    region_HRAF,
+    glottocode,
+    `language family` = glottocode_comment,
+    latitude = Lat,
+    longitude = Long
+  )
+```
+
+```{r}
+# Finally we put them in alphabetical order.
+
+ea_matched_sorted <- ea_matched %>%
+  arrange(society_name_HRAF)  
+write_csv(ea_matched_sorted, "EA_HRAF_matched.csv")
+
+
+sccs_matched_sorted <- sccs_matched %>%
+  arrange(society_name_HRAF)
+write_csv(sccs_matched_sorted, "SCCS_HRAF_matched.csv")
+```
+
+```{r}
+# We completed the Dataset by adding manually the Data now we are going to split the region column in two parts, one for the region and the other for subregion.
+
+df <- read_csv("EA_EHRAF_MATCHED_EC.csv")
+
+# We split the Region column in two.
+
+df_cleaned <- df %>%
+  separate(region_HRAF, into = c("region_HRAF", "subregion_HRAF"), sep = "-", fill = "right") %>%
+  mutate(
+    region_HRAF = str_squish(region_HRAF),
+    subregion_HRAF = str_squish(subregion_HRAF)
+  ) %>%
+  arrange(society_name_EA)
+```
+
+```{r}
+# Now we have the cleaned Dataset.
+
+write_csv(df_cleaned, "EA_EHRAF_MATCHED_EC_cleaned.csv")
+```
+
+```{r}
+# Now we are going to create the Dataset for the SCCS sample by extracting the societies in our previous Dataset because it's a subset of it.
+
+# Here is the list of the society in the SCCS sample.
+
+societies_to_keep <- c(
+  "Abkhazians", "Ainu", "Akan", "Aleut", "Amahuaca", "Amhara", "Andamans", "Armenia", "Atayal",
+  "Aymara", "Aztecs", "Babylonians", "Balinese", "Basseri", "Bau Fijians", "Belau", "Berbers of Morocco",
+  "Burmans", "Burusho", "Chuuk", "Comanche", "Eastern Toraja", "Enxet and Enlhet", "Eyak", "Fellahin",
+  "Fur", "Garo", "Gros Ventre", "Guaraní", "Hadza", "Haida", "Haitians", "Han Chinese", "Havasupai",
+  "Hidatsa", "Huichol", "Huron/Wendat", "Ifugao", "Inka", "Innu", "Island Carib", "Israelites",
+  "Javanese", "Kanak", "Kaska", "Kimam", "Klamath", "Konso", "Korea", "Kurds", "Kutenai", "Kwoma",
+  "Lozi", "Malays", "Manchu", "Manus", "Mao", "Mapuche", "Marquesas", "Mende", "Miskito", "Natchez",
+  "Nicobarese", "Nuba", "Nubians", "Nyakyusa and Ngonde", "Ojibwa", "Okayama", "Omaha", "Orokaiva",
+  "Pawnee", "Rmeet", "Rural Irish", "Russians", "San", "Santal", "Semang", "Shilluk", "Siwai",
+  "Songhai", "Southern Coast Salish", "Suku", "Talamancans", "Tallensi", "Tanala", "Teda", "Tikopia",
+  "Tiwi", "Tobelo", "Toda", "Trumai", "Tukano", "Turks", "Uttar Pradesh", "Vedda", "West Punjabi",
+  "Wolof", "Xavante", "Xokleng", "Yahgan", "Yapese", "Yukaghir", "Yurok", "Zuni"
+)
+```
+
+```{r}
+# Our full and completed Dataset for EA.
+
+ea_full <- read_csv("EA_HRAF_FINAL_DATASET.csv")
+```
+
+```{r}
+# We extract the sample.
+
+ea_subset <- ea_full %>%
+  filter(society_name_HRAF %in% societies_to_keep) %>%
+  rename(society_name_SCCS = society_name_EA) %>%
+  arrange(society_name_HRAF)
+
+# We put them in alphabetical order by the Hraf society name.
+
+ea_full_sorted <- ea_full %>%
+  arrange(society_name_HRAF)
+```
+
+```{r}
+write_csv(ea_subset, "SCCS_HRAF_FINAL_DATA.csv")
+write_csv(ea_full_sorted, "EA_HRAF_FINAL_DATA.csv")
+```
+
+```{r}
+SCCS <- read_csv("SCCS_HRAF_FINAL_DATA.csv")
+EA<- read_csv("EA_HRAF_FINAL_DATA.csv")
+```
+
+```{r}
+# Now we are going to check how many NA we have in each Dataset.
+
+count_na <- function(df) {
+  sapply(df, function(col) sum(is.na(col)))
+}
+
+# We apply the function and print the results.
+na_counts_SCCS <- count_na(SCCS)
+na_counts_EA <- count_na(EA)
+
+cat("Number of NA in each colum (SCCS):\n")
+print(na_counts_subset)
+
+cat("\nNumber of  NA  each colum (EA):\n")
+print(na_counts_full)
+
+```
+
