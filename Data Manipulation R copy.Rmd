@@ -1,0 +1,105 @@
+---
+title: "Data Manipulation"
+output: html_notebook
+---
+
+ 
+
+```{r}
+library(dplyr)
+library(readr)
+library(stringr)
+library(tidyr)
+library(tibble)
+```
+```{r}
+# Here I cleaned the Dataset to manipulate more easily.
+df <- read_csv("Text_Extraction.csv")
+
+colnames(df) <- c("Horodateur", "Society", "Paragraph", "Source", "Page", "Comment")
+df <- df %>% select(Society, Paragraph, Source, Page, Comment)
+
+df <- df %>%
+  drop_na(Page) %>%
+  arrange(Source, Page)
+
+```
+
+```{r}
+# With this function I grouped the different document together and after, I grouped in the same lign the document with the pages that are consecutive. 
+fusion_par_consecutivite <- function(group) {
+  group <- group %>%
+    mutate(
+      Page = str_extract(as.character(Page), "\\d+"),         
+      Page = suppressWarnings(as.numeric(Page))               
+    ) %>%
+    filter(!is.na(Page)) %>%
+    arrange(Page)
+
+  if (nrow(group) == 0) return(tibble())
+
+  blocs <- list()
+  bloc <- list(group[1, , drop = FALSE])
+
+ for (i in 2:nrow(group)) {
+  curr <- group[i, , drop = FALSE]
+  prev <- group[i - 1, , drop = FALSE]
+
+  if (nrow(curr) == 0 || nrow(prev) == 0) next  
+
+  curr_page <- curr$Page[[1]]
+  prev_page <- prev$Page[[1]]
+
+  if (is.na(curr_page) || is.na(prev_page)) {
+    blocs <- append(blocs, list(bind_rows(bloc)))
+    bloc <- list(curr)
+    next
+  }
+
+  if (curr_page <= prev_page + 1) {
+    bloc <- append(bloc, list(curr))
+  } else {
+    blocs <- append(blocs, list(bind_rows(bloc)))
+    bloc <- list(curr)
+  }
+}
+
+
+  blocs <- append(blocs, list(bind_rows(bloc)))
+
+  fusionnes <- lapply(blocs, function(df_bloc) {
+    tibble(
+      Source = df_bloc$Source[1],
+      Society = df_bloc$Society[1],
+      Pages = paste(df_bloc$Page, collapse = ", "),
+      Report = paste(df_bloc$Paragraph, collapse = "\n\n"),
+      Comments = paste(na.omit(df_bloc$Comment), collapse = " | ")
+    )
+  })
+
+  bind_rows(fusionnes)
+}
+# Apply the function to all the dataframe
+resultat <- df %>%
+  group_by(Source) %>%
+  group_split() %>%
+  lapply(fusion_par_consecutivite) %>%
+  bind_rows()
+
+resultat_clean <- resultat %>% drop_na()
+```
+
+```{r}
+write_csv(resultat_clean, "Data_Manipulation_R.csv")
+print(resultat_clean)
+```
+```{r}
+# Finally I can add a column with the size of each paragraph by putting the number of word in each paragraph.
+resultat_clean <- resultat_clean %>%
+  mutate(Word_Count = str_count(Report, "\\S+"))
+```
+
+```{r}
+write_csv(resultat_clean, "Data_Manipulation _Fin_R.csv")
+```
+
